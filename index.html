@@ -1,0 +1,556 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="dark light" />
+    <title>Screensaver</title>
+    <link rel="stylesheet" href="styles.css?v=6" />
+  </head>
+  <body>
+    <div class="grade" aria-hidden="true"></div>
+    <div class="haze" aria-hidden="true"></div>
+    <div class="glitter" aria-hidden="true"></div>
+    <div class="glass" aria-hidden="true"></div>
+
+    <svg class="lava" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+      <defs>
+        <filter id="goo" x="-30%" y="-30%" width="160%" height="160%">
+          <feGaussianBlur in="SourceGraphic" stdDeviation="10" result="blur" />
+          <feColorMatrix
+            in="blur"
+            mode="matrix"
+            values="
+              1 0 0 0 0
+              0 1 0 0 0
+              0 0 1 0 0
+              0 0 0 36 -16"
+            result="goo"
+          />
+        </filter>
+
+        <!-- Subtle internal marbling + heat shimmer (applied to wax group) -->
+        <filter id="waxDistort" x="-22%" y="-22%" width="144%" height="144%">
+          <!-- Slow marbling -->
+          <feTurbulence type="fractalNoise" baseFrequency="0.010 0.024" numOctaves="2" seed="13" result="noiseA">
+            <animate
+              attributeName="baseFrequency"
+              dur="95s"
+              values="0.008 0.020; 0.010 0.024; 0.009 0.022; 0.011 0.026; 0.008 0.020"
+              repeatCount="indefinite"
+            />
+          </feTurbulence>
+          <feDisplacementMap in="SourceGraphic" in2="noiseA" scale="4.8" xChannelSelector="R" yChannelSelector="G" result="marbled" />
+
+          <!-- Faster heat shimmer (tiny, but noticeable) -->
+          <feTurbulence type="turbulence" baseFrequency="0.14" numOctaves="1" seed="5" result="noiseB">
+            <animate attributeName="baseFrequency" dur="38s" values="0.10;0.16;0.12;0.18;0.10" repeatCount="indefinite" />
+            <animate attributeName="seed" dur="14s" values="5;9;13;7;5" repeatCount="indefinite" />
+          </feTurbulence>
+          <feDisplacementMap in="marbled" in2="noiseB" scale="1.9" xChannelSelector="R" yChannelSelector="G" />
+        </filter>
+
+        <mask
+          id="blobMask"
+          maskUnits="userSpaceOnUse"
+          maskContentUnits="userSpaceOnUse"
+          x="-40"
+          y="-40"
+          width="180"
+          height="180"
+        >
+          <g id="maskBlobs" filter="url(#goo)"></g>
+        </mask>
+
+        <!-- Seamless blob color gradient (painted once, then masked) -->
+        <linearGradient id="blobFill" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#cf4bd4" />
+          <stop offset="0.45" stop-color="#990094" />
+          <stop offset="1" stop-color="#5f0060" />
+        </linearGradient>
+
+        <!-- Very subtle “density” marbling overlay (still masked => no seams) -->
+        <linearGradient id="blobMarbleTint" x1="1" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#ffffff" stop-opacity="0.12" />
+          <stop offset="0.55" stop-color="#ffccff" stop-opacity="0.06" />
+          <stop offset="1" stop-color="#000000" stop-opacity="0.12" />
+        </linearGradient>
+
+        <!-- Lighting overlays (still masked => cohesive shapes, no seams) -->
+        <radialGradient id="blobShine" cx="28%" cy="22%" r="78%">
+          <stop offset="0" stop-color="#ffffff" stop-opacity="0.82" />
+          <stop offset="0.28" stop-color="#ffffff" stop-opacity="0.34" />
+          <stop offset="1" stop-color="#ffffff" stop-opacity="0" />
+        </radialGradient>
+
+        <radialGradient id="blobSpec" cx="40%" cy="18%" r="32%">
+          <stop offset="0" stop-color="#ffffff" stop-opacity="0.95" />
+          <stop offset="0.22" stop-color="#ffffff" stop-opacity="0.28" />
+          <stop offset="1" stop-color="#ffffff" stop-opacity="0" />
+        </radialGradient>
+
+        <radialGradient id="blobShade" cx="70%" cy="80%" r="92%">
+          <stop offset="0" stop-color="#000000" stop-opacity="0" />
+          <stop offset="0.45" stop-color="#000000" stop-opacity="0.26" />
+          <stop offset="1" stop-color="#000000" stop-opacity="0.62" />
+        </radialGradient>
+      </defs>
+
+      <g mask="url(#blobMask)" filter="url(#waxDistort)">
+        <rect width="100" height="100" fill="url(#blobFill)" opacity="0.95"></rect>
+        <rect width="100" height="100" fill="url(#blobMarbleTint)" opacity="0.35"></rect>
+        <rect width="100" height="100" fill="url(#blobShine)" opacity="0.9"></rect>
+        <rect width="100" height="100" fill="url(#blobSpec)" opacity="0.85"></rect>
+        <rect width="100" height="100" fill="url(#blobShade)" opacity="0.92"></rect>
+      </g>
+    </svg>
+
+    <img class="floaty" src="assets/lava-lamp.png" alt="" aria-hidden="true" />
+    <img class="floaty" src="assets/lava-lamp.png" alt="" aria-hidden="true" />
+    <img class="floaty" src="assets/lava-lamp.png" alt="" aria-hidden="true" />
+
+    <script>
+      const svg = document.querySelector("svg.lava");
+      const blobsGroup = document.getElementById("maskBlobs");
+      const floaties = Array.from(document.querySelectorAll("img.floaty"));
+
+      const BLOB_COUNT = 8;
+      const blobs = [];
+      const circles = [];
+      const MAX_BLOBS = 14;
+
+      // viewport in "viewBox units" (0..100)
+      const W = 100;
+      const H = 100;
+      const OFF = 22; // off-screen margin: blobs spawn outside this band
+
+      function rand(min, max) {
+        return min + Math.random() * (max - min);
+      }
+
+      function clamp(v, lo, hi) {
+        return Math.max(lo, Math.min(hi, v));
+      }
+
+      function respawnOffscreen(b, dirHint = null) {
+        // dirHint: "top" | "bottom" | null
+        // Weighted spawn: mostly from bottom (lava lamp feel)
+        const side = dirHint ?? (Math.random() < 0.75 ? "bottom" : "top");
+
+        // slower overall motion
+        const baseV = rand(0.08, 0.18);
+
+        if (side === "top") {
+          b.x = rand(0, W);
+          b.y = -OFF - rand(0, 10);
+          b.vx = rand(-0.06, 0.06);
+          b.vy = baseV;
+        } else {
+          b.x = rand(0, W);
+          b.y = H + OFF + rand(0, 10);
+          b.vx = rand(-0.06, 0.06);
+          b.vy = -baseV;
+        }
+
+        b.phase = rand(0, Math.PI * 2);
+        b.wobble = rand(0.6, 1.4);
+      }
+
+      function maybeRespawnIfOut(b) {
+        const left = -OFF * 1.4;
+        const right = W + OFF * 1.4;
+        const top = -OFF * 1.4;
+        const bottom = H + OFF * 1.4;
+
+        // If a blob drifts out the sides, gently re-center it off-screen
+        if (b.x < left) b.x = -OFF;
+        if (b.x > right) b.x = W + OFF;
+
+        if (b.y < top) return respawnOffscreen(b, "bottom");
+        if (b.y > bottom) return respawnOffscreen(b, "top");
+      }
+
+      function addBlob({ x, y, r, vx, vy }) {
+        if (blobs.length >= MAX_BLOBS) return;
+        const blob = {
+          x,
+          y,
+          r,
+          vx,
+          vy,
+          phase: rand(0, Math.PI * 2),
+          wobble: rand(0.6, 1.4),
+        };
+        const c = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+        c.setAttribute("fill", "#fff");
+        c.setAttribute("cx", blob.x);
+        c.setAttribute("cy", blob.y);
+        c.setAttribute("r", blob.r);
+        blobsGroup.appendChild(c);
+        blobs.push(blob);
+        circles.push(c);
+      }
+
+      function clientToViewBox(e) {
+        const rect = svg.getBoundingClientRect();
+        const x = ((e.clientX - rect.left) / rect.width) * W;
+        const y = ((e.clientY - rect.top) / rect.height) * H;
+        return { x, y };
+      }
+
+      function pinchOffAt(px, py) {
+        // Find top-most blob under pointer (iterate from end)
+        for (let i = blobs.length - 1; i >= 0; i--) {
+          const b = blobs[i];
+          const dx = px - b.x;
+          const dy = py - b.y;
+          const d = Math.hypot(dx, dy);
+          if (d > b.r * 1.05) continue;
+
+          // Don't pinch tiny blobs
+          if (b.r < 9) return true;
+
+          // New piece breaks off from the parent at the click point
+          const offR = clamp(b.r * rand(0.26, 0.38), 4.5, 8.5);
+          b.r = Math.max(b.r - offR * rand(0.7, 0.95), 8);
+
+          const nx = dx / (d || 1);
+          const ny = dy / (d || 1);
+          const impulse = rand(0.16, 0.32);
+
+          addBlob({
+            x: px + nx * offR * 0.35,
+            y: py + ny * offR * 0.35,
+            r: offR,
+            vx: b.vx + nx * impulse + rand(-0.05, 0.05),
+            vy: b.vy + ny * impulse + rand(-0.05, 0.05),
+          });
+
+          return true;
+        }
+        return false;
+      }
+
+      // Create circles
+      for (let i = 0; i < BLOB_COUNT; i++) {
+        const r = rand(9, 19) * (i < 2 ? 1.45 : 1.1); // slightly smaller
+        const blob = {
+          x: 0,
+          y: 0,
+          r,
+          vx: 0,
+          vy: 0,
+          phase: rand(0, Math.PI * 2),
+          wobble: rand(0.6, 1.4),
+        };
+        // Rule: ensure at least two blobs at the start.
+        // Spawn them just out of view (bottom) so they float in immediately.
+        if (i < 2) {
+          respawnOffscreen(blob, "bottom");
+          blob.y = H + rand(1, 4);
+          blob.vy = -rand(0.12, 0.22);
+          blob.vx = rand(-0.05, 0.05);
+        } else {
+          respawnOffscreen(blob);
+        }
+
+        const c = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+        c.setAttribute("fill", "#fff");
+        c.setAttribute("cx", blob.x);
+        c.setAttribute("cy", blob.y);
+        c.setAttribute("r", blob.r);
+        blobsGroup.appendChild(c);
+
+        blobs.push(blob);
+        circles.push(c);
+      }
+
+      svg.addEventListener("pointerdown", (e) => {
+        const { x, y } = clientToViewBox(e);
+        pinchOffAt(x, y);
+      });
+
+      // Add a couple "heat plumes" to bias flow upward/downward like lava lamps
+      const plumes = [
+        { x: 35, y: 78, s: 1.0 },
+        { x: 70, y: 35, s: -0.9 },
+      ];
+
+      // Floating images: same size, never overlap
+      const floatyState = floaties.map((_, i) => ({
+        x: 0,
+        y: 0,
+        vx: 0,
+        vy: 0,
+        bx: 0,
+        by: 0,
+        phase: rand(0, Math.PI * 2) + i * 0.9,
+        rotPhase: rand(0, Math.PI * 2) + i * 1.3,
+        popT: 0, // 0..1 click animation progress
+        popSeed: rand(0, Math.PI * 2),
+      }));
+
+      function easeOutBack(x) {
+        const c1 = 1.70158;
+        const c3 = c1 + 1;
+        return 1 + c3 * Math.pow(x - 1, 3) + c1 * Math.pow(x - 1, 2);
+      }
+
+      function initFloaties() {
+        const w = window.innerWidth;
+        const h = window.innerHeight;
+        const rect0 = floaties[0]?.getBoundingClientRect();
+        const size = rect0 ? Math.max(rect0.width, rect0.height) : Math.min(w, h) * 0.5;
+        const halfW = rect0 ? rect0.width * 0.5 : size * 0.35;
+        const halfH = rect0 ? rect0.height * 0.5 : size * 0.5;
+
+        // Seed positions spread across the whole window (no artificial perimeter).
+        const seeds = [
+          { x: w * 0.25, y: h * 0.35 },
+          { x: w * 0.75, y: h * 0.45 },
+          { x: w * 0.5, y: h * 0.75 },
+        ];
+
+        for (let i = 0; i < floatyState.length; i++) {
+          const s = floatyState[i];
+          const seed = seeds[i] ?? { x: rand(halfW, w - halfW), y: rand(halfH, h - halfH) };
+          s.x = clamp(seed.x + rand(-20, 20), halfW, w - halfW);
+          s.y = clamp(seed.y + rand(-20, 20), halfH, h - halfH);
+          s.vx = rand(-10, 10);
+          s.vy = rand(-10, 10);
+          s.bx = rand(-1, 1);
+          s.by = rand(-1, 1);
+        }
+
+        // One-time relaxation so they start non-overlapping.
+        for (let iter = 0; iter < 18; iter++) resolveFloatyOverlaps(size * 1.15);
+        renderFloaties(performance.now());
+      }
+
+      function resolveFloatyOverlaps(minDist) {
+        for (let i = 0; i < floatyState.length; i++) {
+          for (let j = i + 1; j < floatyState.length; j++) {
+            const a = floatyState[i];
+            const b = floatyState[j];
+            const dx = b.x - a.x;
+            const dy = b.y - a.y;
+            const d = Math.hypot(dx, dy) || 1;
+            const overlap = minDist - d;
+            if (overlap <= 0) continue;
+            const nx = dx / d;
+            const ny = dy / d;
+            a.x -= nx * overlap * 0.52;
+            a.y -= ny * overlap * 0.52;
+            b.x += nx * overlap * 0.52;
+            b.y += ny * overlap * 0.52;
+          }
+        }
+      }
+
+      function renderFloaties(now) {
+        for (let i = 0; i < floaties.length; i++) {
+          const s = floatyState[i];
+          const t = now / 1000;
+          const rot = 10 * Math.sin(t * 0.045 + s.rotPhase) + 4 * Math.sin(t * 0.019 + s.rotPhase * 1.6);
+
+          // Click effect: grow + shake side-to-side ~2 times
+          const p = clamp(s.popT, 0, 1);
+          const e = easeOutBack(1 - p); // starts big, settles
+          const scale = 1 + 0.3 * e;
+          const shake = 14 * Math.sin(p * Math.PI * 4) * (1 - p); // 2 cycles, decays
+          const wiggle = 7 * Math.sin(p * Math.PI * 4 + s.popSeed) * (1 - p);
+
+          floaties[i].style.transform = `translate(${(s.x + shake).toFixed(2)}px, ${s.y.toFixed(
+            2
+          )}px) translate(-50%, -50%) rotate(${(rot + wiggle).toFixed(3)}deg) scale(${scale.toFixed(4)})`;
+        }
+      }
+
+      let last = performance.now();
+      function tick(now) {
+        const dt = clamp((now - last) / 1000, 0, 0.05);
+        last = now;
+        const t = now / 1000;
+
+        for (let i = 0; i < blobs.length; i++) {
+          const b = blobs[i];
+
+          // Smooth flow field (space-dependent) + gentle curl
+          const flowX =
+            0.12 * Math.sin((b.y * 0.085 + t * 0.22) * 1.0) +
+            0.06 * Math.sin((b.y * 0.045 - t * 0.14) * 1.0);
+          const flowY =
+            -0.12 * Math.cos((b.x * 0.078 + t * 0.2) * 1.0) +
+            0.05 * Math.cos((b.x * 0.035 - t * 0.12) * 1.0);
+
+          const curlX = 0.14 * Math.sin(t * 0.32 + b.phase) + 0.06 * Math.sin((t + b.phase) * 0.72);
+          const curlY = 0.12 * Math.cos(t * 0.34 + b.phase) - 0.05 * Math.cos((t + b.phase) * 0.68);
+
+          // Plume influence: wax-like rising & sinking pockets
+          let ax = (flowX + curlX) * 0.18;
+          let ay = (flowY + curlY) * 0.18;
+          for (const p of plumes) {
+            const dx = b.x - p.x;
+            const dy = b.y - p.y;
+            const d2 = dx * dx + dy * dy + 40;
+            const f = (p.s * 28) / d2;
+            ax += -dx * f * 0.032;
+            ay += -dy * f * 0.032;
+          }
+
+          // Integrate with extra viscosity (glide, less twitch)
+          b.vx = b.vx * 0.9975 + ax * dt;
+          b.vy = b.vy * 0.9975 + ay * dt;
+
+          // Soft speed cap keeps it fluid-looking
+          const v = Math.hypot(b.vx, b.vy);
+          const vmax = 0.26;
+          if (v > vmax) {
+            const s = vmax / v;
+            b.vx *= s;
+            b.vy *= s;
+          }
+
+          b.x = b.x + b.vx;
+          b.y = b.y + b.vy;
+          maybeRespawnIfOut(b);
+
+          // Radius "breathing" makes blobs feel alive
+          const breathe = 1 + 0.06 * Math.sin(t * (0.7 / b.wobble) + b.phase);
+          const r = b.r * breathe;
+
+          const c = circles[i];
+          c.setAttribute("cx", b.x.toFixed(3));
+          c.setAttribute("cy", b.y.toFixed(3));
+          c.setAttribute("r", r.toFixed(3));
+        }
+
+        // Floaties update (repel to prevent overlap)
+        if (floaties.length) {
+          // Use max size among floaties (accounts for click-scale)
+          let size = 0;
+          for (const el of floaties) {
+            const r = el.getBoundingClientRect();
+            size = Math.max(size, r.width, r.height);
+          }
+          const minDist = size * 1.15;
+          const rectRef = floaties[0].getBoundingClientRect();
+          const halfW = rectRef.width * 0.5;
+          const halfH = rectRef.height * 0.5;
+          const w = window.innerWidth;
+          const h = window.innerHeight;
+          const bounce = 0.9; // restitution (only on corners)
+          const wallSoft = 140; // bigger => less "hard wall"
+          const wallBand = 90; // start pushing before the edge
+          const vmax = 26; // px/s (keeps it dreamy)
+
+          for (let i = 0; i < floatyState.length; i++) {
+            const s = floatyState[i];
+            if (s.popT > 0) s.popT = Math.max(0, s.popT - dt / 0.55); // ~550ms effect
+            // smooth "wander bias" (integrated) + layered waves => less predictable
+            s.bx = s.bx * 0.999 + 0.0012 * Math.sin(t * 0.13 + s.phase * 1.9);
+            s.by = s.by * 0.999 + 0.0012 * Math.cos(t * 0.11 + s.phase * 2.2);
+
+            const ax =
+              1.4 * Math.sin(t * 0.041 + s.phase) +
+              0.9 * Math.sin(t * 0.023 + s.phase * 1.8) +
+              0.6 * Math.cos(t * 0.017 + s.phase * 2.5) +
+              s.bx * 22;
+            const ay =
+              1.2 * Math.cos(t * 0.038 + s.phase * 1.2) +
+              0.8 * Math.sin(t * 0.021 + s.phase * 1.6) +
+              0.55 * Math.sin(t * 0.016 + s.phase * 2.1) +
+              s.by * 22;
+
+            // Add smooth drift directly into acceleration (no extra render drift)
+            const driftAx =
+              0.55 * Math.sin(t * 0.055 + s.phase) +
+              0.32 * Math.sin(t * 0.031 + s.phase * 1.7) +
+              0.22 * Math.cos(t * 0.021 + s.phase * 2.1);
+            const driftAy =
+              0.5 * Math.cos(t * 0.052 + s.phase * 1.1) +
+              0.28 * Math.sin(t * 0.029 + s.phase * 1.4) +
+              0.2 * Math.sin(t * 0.019 + s.phase * 2.3);
+
+            s.vx = s.vx * 0.99 + (ax + driftAx) * dt * 7;
+            s.vy = s.vy * 0.99 + (ay + driftAy) * dt * 7;
+
+            // Soft speed cap
+            const v = Math.hypot(s.vx, s.vy);
+            if (v > vmax) {
+              const m = vmax / v;
+              s.vx *= m;
+              s.vy *= m;
+            }
+
+            s.x += s.vx * dt;
+            s.y += s.vy * dt;
+
+            // Edge behavior:
+            // - Touching a single edge: clamp and "float" along it (no bounce).
+            // - Touching a corner (two edges): bounce back in.
+            let hitX = 0; // -1 left, +1 right
+            let hitY = 0; // -1 top, +1 bottom
+
+            const left = halfW;
+            const right = w - halfW;
+            const top = halfH;
+            const bottom = h - halfH;
+
+            // Soft wall push near edges (reduces visible "wall hit")
+            if (s.x < left + wallBand) s.vx += ((left + wallBand - s.x) / wallSoft) * 18 * dt;
+            if (s.x > right - wallBand) s.vx -= ((s.x - (right - wallBand)) / wallSoft) * 18 * dt;
+            if (s.y < top + wallBand) s.vy += ((top + wallBand - s.y) / wallSoft) * 18 * dt;
+            if (s.y > bottom - wallBand) s.vy -= ((s.y - (bottom - wallBand)) / wallSoft) * 18 * dt;
+
+            // Hard boundary only if it actually crosses the edge
+            if (s.x < left) {
+              s.x = left;
+              hitX = -1;
+            } else if (s.x > right) {
+              s.x = right;
+              hitX = 1;
+            }
+            if (s.y < top) {
+              s.y = top;
+              hitY = -1;
+            } else if (s.y > bottom) {
+              s.y = bottom;
+              hitY = 1;
+            }
+
+            if (hitX && hitY) {
+              // Corner bounce: reflect both components inward
+              s.vx = -Math.sign(hitX) * Math.abs(s.vx) * bounce;
+              s.vy = -Math.sign(hitY) * Math.abs(s.vy) * bounce;
+            } else {
+              // Single-edge contact: kill outward component so it slides
+              if (hitX && Math.sign(s.vx) === hitX) s.vx *= 0.2;
+              if (hitY && Math.sign(s.vy) === hitY) s.vy *= 0.2;
+            }
+          }
+
+          // A few solver iterations keeps them separated smoothly
+          for (let iter = 0; iter < 5; iter++) resolveFloatyOverlaps(minDist);
+          renderFloaties(now);
+        }
+
+        requestAnimationFrame(tick);
+      }
+
+      window.addEventListener("load", initFloaties, { once: true });
+      window.addEventListener("resize", () => initFloaties());
+
+      // Click PNG => grow + shake twice
+      for (let i = 0; i < floaties.length; i++) {
+        floaties[i].addEventListener("pointerdown", (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          floatyState[i].popT = 1;
+          floatyState[i].popSeed = rand(0, Math.PI * 2);
+        });
+      }
+      requestAnimationFrame(tick);
+    </script>
+  </body>
+</html>

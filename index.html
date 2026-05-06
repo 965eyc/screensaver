@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="color-scheme" content="dark light" />
     <title>Screensaver</title>
-    <link rel="stylesheet" href="styles.css?v=6" />
+    <link rel="stylesheet" href="styles.css?v=7" />
   </head>
   <body>
     <div class="grade" aria-hidden="true"></div>
@@ -353,16 +353,21 @@
           const t = now / 1000;
           const rot = 10 * Math.sin(t * 0.045 + s.rotPhase) + 4 * Math.sin(t * 0.019 + s.rotPhase * 1.6);
 
-          // Click effect: grow + shake side-to-side ~2 times
+          // Click effect: playful pop (squash/stretch + tiny bounce + wiggle)
           const p = clamp(s.popT, 0, 1);
           const e = easeOutBack(1 - p); // starts big, settles
-          const scale = 1 + 0.3 * e;
-          const shake = 14 * Math.sin(p * Math.PI * 4) * (1 - p); // 2 cycles, decays
-          const wiggle = 7 * Math.sin(p * Math.PI * 4 + s.popSeed) * (1 - p);
+          const base = 1 + 0.26 * e;
+          const squash = 1 + 0.18 * Math.sin(p * Math.PI * 2) * (1 - p);
+          const scaleX = base * (1 + 0.14 * squash);
+          const scaleY = base * (1 - 0.14 * squash);
+          const bounceY = -10 * Math.sin(p * Math.PI) * (1 - p);
+          const wiggle = 6 * Math.sin(p * Math.PI * 2 + s.popSeed) * (1 - p);
 
-          floaties[i].style.transform = `translate(${(s.x + shake).toFixed(2)}px, ${s.y.toFixed(
+          floaties[i].style.transform = `translate(${s.x.toFixed(2)}px, ${s.y.toFixed(
             2
-          )}px) translate(-50%, -50%) rotate(${(rot + wiggle).toFixed(3)}deg) scale(${scale.toFixed(4)})`;
+          )}px) translate(-50%, -50%) translate(0, ${bounceY.toFixed(
+            2
+          )}px) rotate(${(rot + wiggle).toFixed(3)}deg) scale(${scaleX.toFixed(4)}, ${scaleY.toFixed(4)})`;
         }
       }
 
